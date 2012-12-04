@@ -21,3 +21,24 @@ c. // test on c.
 
 //Test for comment
 //c.  
+
+class Greeter {
+	greeting: string;
+	constructor (message: string) {
+		this.greeting = message;
+	}
+	greet() {
+		return "Hello, " + this.greeting;
+	}
+}   
+
+var greeter = new Greeter("world");
+greeter. // test on greeter.
+
+var button = document.createElement('button')
+button.innerText = "Say Hello"
+button.onclick = function() {
+	alert(greeter.greet())
+}
+
+document.body.appendChild(button)

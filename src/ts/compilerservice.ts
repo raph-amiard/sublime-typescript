@@ -498,6 +498,7 @@ module CService {
             for (var i = 0; i < this.scripts.length; i++) {
                 if (this.scripts[i].name == name) {
                     this.scripts[i].editContent(minChar, limChar, newText);
+                    console.log(this.scripts[i].content);
                     return;
                 }
             }
