@@ -16,27 +16,24 @@ p = Popen(["node", "bin/main.js"], stdin=PIPE, stdout=PIPE)
 def msg(*args):
     res = None
     message = json.dumps(args) + "\n"
-    # print "Message : ", message
+    print "Message : ", message
     p.stdin.write(message)
     res = json.loads(p.stdout.readline())
+    print res
     return res
 
 def serv_add_file(file_name):
 	resp = msg("add_file", file_name)
-	# print resp
 
 def serv_update_file(file_name, content):
     resp = msg("update_script", file_name, content)
-    # print resp
 
 def serv_get_completions(file_name, pos, is_member):
     resp = msg("complete", file_name, pos, is_member)
-    # print resp
     return resp["result"]
 
 def serv_get_errors(file_name):
     resp = msg("get_errors", file_name)
-    # print resp
     return resp["result"]
 
 # ========================== GENERAL HELPERS ======================= #
@@ -60,9 +57,9 @@ def update_server_code(view):
 def format_completion_entry(c_entry):
     prefix = ""
     if c_entry["kind"] == "method":
-        prefix = u"⊳"
+        prefix = u"◉"
     else:
-        prefix = u"→"
+        prefix = u"●"
     prefix += " "
 
     middle = c_entry["name"]
