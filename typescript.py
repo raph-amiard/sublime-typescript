@@ -54,16 +54,8 @@ def init_view(view):
         serv_add_file(view.file_name())
 
 def update_server_code(view):
-    if is_ts(view):
-        content = view.substr(sublime.Region(0, view.size()-1))
-        serv_update_file(view.file_name(), content)
-
-def update_server_code_thread():
-    while True:
-        view = sublime.active_window().active_view()
-        update_server_code(view)
-        print "in update_server_code, buffer_id = ", view.buffer_id()
-        sleep(1)
+    content = view.substr(sublime.Region(0, view.size()-1))
+    serv_update_file(view.file_name(), content)
 
 def format_completion_entry(c_entry):
     prefix = ""
@@ -141,15 +133,26 @@ class TypescriptComplete(sublime_plugin.TextCommand):
         self.view.run_command("auto_complete")
 
 def handle_async_worker(view):
-    def worker():
-        # Update the script
-        update_server_code(view)
-        # Get errors
-        errors = serv_get_errors(view.file_name())
+
+    global errors
+    content = view.substr(sublime.Region(0, view.size()-1))
+    filename = view.file_name()
+    errors = None
+
+    def final():
         handle_errors(view, errors)
         set_error_status(view)
+
+    def worker():
+        global errors
+        # Update the script
+        serv_update_file(filename, content)
+        # Get errors
+        errors = serv_get_errors(filename)
+        sublime.set_timeout(final, 1)
         sleep(1)
         worked_views[view.buffer_id()] = False
+
     return worker
 
 worked_views = {}
