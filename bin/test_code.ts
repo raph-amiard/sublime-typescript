@@ -1,26 +1,33 @@
-module Foo {     var testing = "";     test }
+declare var document;
+declare var alert;
+module Foo {
+	var testing = ""; 
+}
 
 class C1 {
-	public pubMeth() {this.} // test on 'this.'
+	public pubMeth() {this.pubMeth();} // test on 'this.'
 	private privMeth() {}
 	public pubProp = 0;
 	private privProp = 0;
+	public testMeth() {
+		this.pubMeth()
+		return this;
+	}
 }
 
 var f = new C1();
-f. // test on F.
+f.pubMeth(); // test on F.
 module M {
-    export class C { public pub = 0; private priv = 1; }
+    export class C { 
+    	public pub = 0; 
+    	private priv = 1; 
+    	public test = 123;
+    }
     export var V = 0;
 }
 
 
 var c = new M.C();
-
-c. // test on c.
-
-//Test for comment
-//c.  
 
 class Greeter {
 	greeting: string;
@@ -33,7 +40,8 @@ class Greeter {
 }   
 
 var greeter = new Greeter("world");
-greeter. // test on greeter.
+greeter.greet() // test on greeter.
+var gr2 : Greeter = new Greeter("haha");
 
 var button = document.createElement('button')
 button.innerText = "Say Hello"

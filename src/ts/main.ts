@@ -69,7 +69,22 @@ var repl_actions = {
 
     "edit_script": function (file_path, min_char, lim_char, new_text) {
         ts_ls.editScript(file_path, min_char, lim_char, new_text);
-        return {status: "OK"}
+        return {status: "OK"};
+    },
+
+    "update_script": function (file_path, content) {
+        ts_ls.updateScript(file_path, content);
+        return {status: "OK"};
+    },
+
+    "get_errors": function(file_path) {
+        return {status: "OK",
+                result: ls.languageService
+                          .getScriptErrors(file_path, 100)};
+    },
+
+    "dummy": function () {
+        return {status: "OK", data:"dummy"};
     }
 }
 
@@ -79,6 +94,8 @@ repl("", (line) => {
     try {
         result = repl_actions[json_data[0]].apply(null, json_data.slice(1));
     } catch (err) {
+        console.error("ZYVA");
+        console.error(err);
         result = {status: "ERROR", error:err};
     }
     console.log(JSON.stringify(result));

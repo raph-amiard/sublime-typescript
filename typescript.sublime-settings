@@ -1,0 +1,4 @@
+{
+	"extensions": ["ts", "str"],
+    "auto_complete": false
+}
