@@ -137,6 +137,7 @@ def handle_async_worker(view):
     global errors
     content = view.substr(sublime.Region(0, view.size()-1))
     filename = view.file_name()
+    view_id = view.buffer_id()
     errors = None
 
     def final():
@@ -151,7 +152,7 @@ def handle_async_worker(view):
         errors = serv_get_errors(filename)
         sublime.set_timeout(final, 1)
         sleep(1)
-        worked_views[view.buffer_id()] = False
+        worked_views[view_id] = False
 
     return worker
 
