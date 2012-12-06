@@ -6,6 +6,7 @@ import json
 from os import path
 from threading import Thread, RLock
 from time import sleep
+import re
 
 
 # ================ SERVER AND COMMUNICATION HELPERS =============== #
@@ -45,13 +46,63 @@ global thread_typescript_update
 thread_typescript_update = None
 do_thread_update = False
 
+def get_all_text(view):
+    return view.substr(sublime.Region(0, view.size()))
+
+open_files = set()
+
+def get_file_view(filename):
+    for w in sublime.windows():
+        for v in w.views():
+            if v.file_name() == filename:
+                return v
+    return None
+
+def get_dep_text(filename):
+    view = get_file_view(filename)
+    if view:
+        return get_all_text(view)
+    else:
+        f = open(filename)
+        ct = f.read()
+        f.close()
+        return ct
+
+def init_file(filename, no_refs=False):
+
+    print "IN init file, open_files = ", open_files
+
+    is_open = filename in open_files
+
+    # If no refs is true and the file is already open, exit
+    if no_refs and is_open:
+        return
+
+    content = get_dep_text(filename)
+    deps = re.findall("/// *<reference path *\='(.*?)'", content)
+
+    if not is_open:
+        print "OKEY ADD"
+        open_files.add(filename)
+        print "DEPS :", deps
+        serv_add_file(filename)
+    else:
+        serv_update_file(filename, content)
+
+    for dep in deps:
+        dep_unix = dep.replace("\\", "/")
+        dep_path = path.join(path.split(filename)[0], dep_unix)
+        print "loop", dep_path
+        init_file(dep_path, no_refs=True)
+
+
 def init_view(view):
     print "is_ts view :", is_ts(view)
     if is_ts(view):
-        serv_add_file(view.file_name())
+        init_file(view.file_name())
 
 def update_server_code(view):
-    content = view.substr(sublime.Region(0, view.size()-1))
+    content = get_all_text(view)
     serv_update_file(view.file_name(), content)
 
 def format_completion_entry(c_entry):
