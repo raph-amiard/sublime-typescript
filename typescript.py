@@ -5,8 +5,9 @@ from subprocess import Popen, PIPE
 import json
 from os import path
 from threading import Thread, RLock
-from time import sleep
+from time import sleep, time
 import re
+import difflib
 
 
 # ================ SERVER AND COMMUNICATION HELPERS =============== #
@@ -17,10 +18,12 @@ p = Popen(["node", "bin/main.js"], stdin=PIPE, stdout=PIPE)
 def msg(*args):
     res = None
     message = json.dumps(args) + "\n"
-    print "Message : ", message
+    print "Message : ", args[0]
+    t = time()
     p.stdin.write(message)
     res = json.loads(p.stdout.readline())
-    print res
+    print "Time elapsed : ", time() - t
+    # print res
     return res
 
 def serv_add_file(file_name):
@@ -70,21 +73,16 @@ def get_dep_text(filename):
 
 def init_file(filename, no_refs=False):
 
-    print "IN init file, open_files = ", open_files
-
     is_open = filename in open_files
 
     # If no refs is true and the file is already open, exit
-    if no_refs and is_open:
-        return
+    if no_refs and is_open: return
 
     content = get_dep_text(filename)
     deps = re.findall("/// *<reference path *\='(.*?)'", content)
 
     if not is_open:
-        print "OKEY ADD"
         open_files.add(filename)
-        print "DEPS :", deps
         serv_add_file(filename)
     else:
         serv_update_file(filename, content)
@@ -92,18 +90,25 @@ def init_file(filename, no_refs=False):
     for dep in deps:
         dep_unix = dep.replace("\\", "/")
         dep_path = path.join(path.split(filename)[0], dep_unix)
-        print "loop", dep_path
         init_file(dep_path, no_refs=True)
 
 
 def init_view(view):
     print "is_ts view :", is_ts(view)
     if is_ts(view):
+        views_text[view.file_name()] = get_all_text(view)
         init_file(view.file_name())
 
-def update_server_code(view):
-    content = get_all_text(view)
-    serv_update_file(view.file_name(), content)
+views_text = {}
+
+def update_server_code(filename, new_content):
+    old_content = views_text[filename]
+    print "IN UPDATE SERVER CODE"
+    s = difflib.SequenceMatcher(None, old_content, new_content)
+    for opcode in s.get_opcodes():
+        print opcode
+    views_text[filename] = new_content
+    serv_update_file(filename, new_content)
 
 def format_completion_entry(c_entry):
     prefix = ""
@@ -115,7 +120,7 @@ def format_completion_entry(c_entry):
 
     middle = c_entry["name"]
     if c_entry["kind"] == "method":
-        middle += "()"
+        middle += ""
 
     suffix = "\t" + c_entry["type"]
 
@@ -145,10 +150,14 @@ def get_pos(view):
     return view.sel()[0].begin()
 
 def handle_errors(view, ts_errors):
-    print "IN HANDLE ERRORS, ", ts_errors
     set_errors_intervals(ts_errors)
-    print "ERRORS INTERVALS :", errors_intervals
-    view.add_regions("typescript_errors", ts_errors_to_regions(ts_errors), "typescript.errors", "cross", sublime.DRAW_EMPTY_AS_OVERWRITE)
+    view.add_regions(
+        "typescript_errors", 
+        ts_errors_to_regions(ts_errors), 
+        "typescript.errors", 
+        "cross", 
+        sublime.DRAW_EMPTY_AS_OVERWRITE
+    )
 
 def show_current_error(view):
     pos = view.sel()[0].begin()
@@ -168,6 +177,8 @@ for window in sublime.windows():
 	for view in window.views():
 		init_view(view)
 
+serv_add_file("bin/lib.d.ts")
+
 # ========================= EVENT HANDLERS ======================== #
 
 class TypescriptComplete(sublime_plugin.TextCommand):
@@ -177,7 +188,7 @@ class TypescriptComplete(sublime_plugin.TextCommand):
         for region in self.view.sel():
             self.view.insert(edit, region.end(), characters)
         # Update the code on the server side for the current file
-        update_server_code(self.view)
+        update_server_code(self.view.file_name(), get_all_text(self.view))
         self.view.run_command("auto_complete")
 
 def handle_async_worker(view):
@@ -195,7 +206,7 @@ def handle_async_worker(view):
     def worker():
         global errors
         # Update the script
-        serv_update_file(filename, content)
+        update_server_code(filename, content)
         # Get errors
         errors = serv_get_errors(filename)
         sublime.set_timeout(final, 1)
@@ -231,6 +242,8 @@ class TestEvent(sublime_plugin.EventListener):
             line = view.substr(sublime.Region(view.word(pos-1).a, pos))
             # Determine wether it is a member completion or not
             is_member = line.endswith(".")
+            completions_json = serv_get_completions(view.file_name(), pos, is_member)
+            completions_json = serv_get_completions(view.file_name(), pos, is_member)
             completions_json = serv_get_completions(view.file_name(), pos, is_member)
             set_error_status(view)
             return completions_ts_to_sublime(completions_json)
