@@ -17,6 +17,7 @@ class C1 {
 
 var f = new C1();
 f.pubMeth(); // test on F.
+
 module M {
     export class C { 
     	public pub = 0; 
@@ -28,6 +29,7 @@ module M {
 
 
 var c = new M.C();
+c.test;
 
 class Greeter {
 	greeting: string;
@@ -37,10 +39,15 @@ class Greeter {
 	greet() {
 		return "Hello, " + this.greeting;
 	}
+
+	public test(a : string, b : string) : string {
+		return a + " " + b;
+	}
 }   
 
 var greeter = new Greeter("world");
 greeter.greet() // test on greeter.
+greeter.test("lol", "hh");
 var gr2 : Greeter = new Greeter("haha");
 
 var button = document.createElement('button')

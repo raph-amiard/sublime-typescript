@@ -93,8 +93,8 @@ repl("", (line) => {
     var result;
     try {
         result = repl_actions[json_data[0]].apply(null, json_data.slice(1));
+        console.error(result);
     } catch (err) {
-        console.error("ZYVA");
         console.error(err);
         result = {status: "ERROR", error:err};
     }

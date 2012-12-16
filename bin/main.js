@@ -34667,7 +34667,6 @@ var CService;
             for(var i = 0; i < this.scripts.length; i++) {
                 if(this.scripts[i].name == name) {
                     this.scripts[i].editContent(minChar, limChar, newText);
-                    console.log(this.scripts[i].content);
                     return;
                 }
             }
@@ -34881,8 +34880,8 @@ repl("", function (line) {
     var result;
     try  {
         result = repl_actions[json_data[0]].apply(null, json_data.slice(1));
+        console.error(result);
     } catch (err) {
-        console.error("ZYVA");
         console.error(err);
         result = {
             status: "ERROR",

@@ -4,7 +4,7 @@ import sublime, sublime_plugin
 from subprocess import Popen, PIPE
 import json
 from os import path
-from threading import Thread, RLock
+from threading import Thread, RLock, Semaphore
 from time import sleep, time
 import re
 import difflib
@@ -31,6 +31,9 @@ def serv_add_file(file_name):
 
 def serv_update_file(file_name, content):
     resp = msg("update_script", file_name, content)
+
+def serv_edit_file(file_name, min_char, new_char, new_text):
+    resp = msg("edit_script", file_name, min_char, new_char, new_text)
 
 def serv_get_completions(file_name, pos, is_member):
     resp = msg("complete", file_name, pos, is_member)
@@ -98,17 +101,33 @@ def init_view(view):
     if is_ts(view):
         views_text[view.file_name()] = get_all_text(view)
         init_file(view.file_name())
+        serv_update_file(view.file_name(), views_text[view.file_name()])
 
 views_text = {}
+
+def format_diffs(seqmatcher, new_content):
+    return [(oc[1], oc[2], new_content[oc[3]:oc[4]] if oc[0] == 'insert' else "")
+            for oc in seqmatcher.get_opcodes()
+            if oc[0] in ['insert', 'delete']]
+
+
+def test_diff_python_side(old_content, minChar, limChar, new_text):
+    print "TEST_DIFF_PYTHON_SIDE"
+    prefix = old_content[0:minChar]
+    suffix = old_content[limChar:]
+    print prefix + new_text + suffix;
+
 
 def update_server_code(filename, new_content):
     old_content = views_text[filename]
     print "IN UPDATE SERVER CODE"
+
     s = difflib.SequenceMatcher(None, old_content, new_content)
-    for opcode in s.get_opcodes():
-        print opcode
+    print format_diffs(s, new_content)
+
     views_text[filename] = new_content
-    serv_update_file(filename, new_content)
+    for diff in format_diffs(s, new_content):
+        serv_edit_file(filename, *diff)
 
 def format_completion_entry(c_entry):
     prefix = ""
@@ -152,10 +171,10 @@ def get_pos(view):
 def handle_errors(view, ts_errors):
     set_errors_intervals(ts_errors)
     view.add_regions(
-        "typescript_errors", 
-        ts_errors_to_regions(ts_errors), 
-        "typescript.errors", 
-        "cross", 
+        "typescript_errors",
+        ts_errors_to_regions(ts_errors),
+        "typescript.errors",
+        "cross",
         sublime.DRAW_EMPTY_AS_OVERWRITE
     )
 
@@ -191,32 +210,51 @@ class TypescriptComplete(sublime_plugin.TextCommand):
         update_server_code(self.view.file_name(), get_all_text(self.view))
         self.view.run_command("auto_complete")
 
-def handle_async_worker(view):
+class AsyncWorker(object):
 
-    global errors
-    content = view.substr(sublime.Region(0, view.size()-1))
-    filename = view.file_name()
-    view_id = view.buffer_id()
-    errors = None
+    def __init__(self, view):
+        self.view = view
+        self.content = view.substr(sublime.Region(0, view.size()))
+        self.filename = view.file_name()
+        self.view_id = view.buffer_id()
+        self.errors = None
+        self.sem = Semaphore()
+        self.has_round_queued = False
 
-    def final():
-        handle_errors(view, errors)
-        set_error_status(view)
+    def do_more_work(self):
+        self.content = self.view.substr(sublime.Region(0, self.view.size()))
+        if not self.has_round_queued:
+            self.sem.release()
+            self.has_round_queued = True
 
-    def worker():
-        global errors
-        # Update the script
-        update_server_code(filename, content)
-        # Get errors
-        errors = serv_get_errors(filename)
-        sublime.set_timeout(final, 1)
-        sleep(1)
-        worked_views[view_id] = False
+    def final(self):
+        handle_errors(self.view, self.errors)
+        set_error_status(self.view)
+        self.has_round_queued = False
 
-    return worker
+    def work(self):
+        while True:
+            # Wait on semaphore
+            self.sem.acquire()
+            # Update the script
+            update_server_code(self.filename, self.content)
+            # Get errors
+            self.errors = serv_get_errors(self.filename)
+            sublime.set_timeout(self.final, 1)
+            sleep(1.3)
 
-worked_views = {}
+
 class TestEvent(sublime_plugin.EventListener):
+
+    workers = {}
+
+    def get_worker_thread(self, view):
+        bid = view.buffer_id()
+        if not bid in self.workers:
+            worker = AsyncWorker(view)
+            Thread(target=worker.work).start()
+            self.workers[bid] = worker
+        return self.workers[bid]
 
     def on_load(self, view):
         print "IN ON LOAD"
@@ -225,11 +263,8 @@ class TestEvent(sublime_plugin.EventListener):
     def on_modified(self, view):
         if view.is_loading(): return
         if is_ts(view):
-            print "in on_modified, ", worked_views
-            if not worked_views.get(view.buffer_id(), False):
-                worked_views[view.buffer_id()] = True
-                Thread(target=handle_async_worker(view)).start()
-            set_error_status(view)
+            t = self.get_worker_thread(view)
+            t.do_more_work()
 
     def on_selection_modified(self, view):
         if is_ts(view):
@@ -242,8 +277,6 @@ class TestEvent(sublime_plugin.EventListener):
             line = view.substr(sublime.Region(view.word(pos-1).a, pos))
             # Determine wether it is a member completion or not
             is_member = line.endswith(".")
-            completions_json = serv_get_completions(view.file_name(), pos, is_member)
-            completions_json = serv_get_completions(view.file_name(), pos, is_member)
             completions_json = serv_get_completions(view.file_name(), pos, is_member)
             set_error_status(view)
             return completions_ts_to_sublime(completions_json)
