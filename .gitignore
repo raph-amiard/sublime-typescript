@@ -1,2 +1,3 @@
 lib/*.js
 src/*.js
+*.pyc
