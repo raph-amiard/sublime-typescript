@@ -1,5 +1,5 @@
 all: bin/lib.d.ts bin/typescript.js bin/typescriptServices.js
-	tsc src/ts/compilerservice.ts --out bin/compilerservice.js
+	tsc src/ts/main.ts --out bin/main.js
 
 bin/lib.d.ts: bin
 	cp lib/typescript/bin/lib.d.ts bin/

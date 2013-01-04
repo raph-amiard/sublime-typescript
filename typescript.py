@@ -8,54 +8,16 @@ from threading import Thread, RLock, Semaphore
 from time import sleep, time
 import re
 import difflib
-
-
-# ================ SERVER AND COMMUNICATION HELPERS =============== #
-
-p = Popen(["node", "bin/main.js"], stdin=PIPE, stdout=PIPE)
-#prlock = RLock()
-
-def msg(*args):
-    res = None
-    message = json.dumps(args) + "\n"
-    print "Message : ", args[0]
-    t = time()
-    p.stdin.write(message)
-    res = json.loads(p.stdout.readline())
-    print "Time elapsed : ", time() - t
-    # print res
-    return res
-
-def serv_add_file(file_name):
-	resp = msg("add_file", file_name)
-
-def serv_update_file(file_name, content):
-    resp = msg("update_script", file_name, content)
-
-def serv_edit_file(file_name, min_char, new_char, new_text):
-    resp = msg("edit_script", file_name, min_char, new_char, new_text)
-
-def serv_get_completions(file_name, pos, is_member):
-    resp = msg("complete", file_name, pos, is_member)
-    return resp["result"]
-
-def serv_get_errors(file_name):
-    resp = msg("get_errors", file_name)
-    return resp["result"]
+from core import project
+from itertools import cycle
 
 # ========================== GENERAL HELPERS ======================= #
 
 def is_ts(view):
-	return view.file_name() and view.file_name().endswith(".ts")
-
-global thread_typescript_update
-thread_typescript_update = None
-do_thread_update = False
+    return view.file_name() and view.file_name().endswith(".ts")
 
 def get_all_text(view):
     return view.substr(sublime.Region(0, view.size()))
-
-open_files = set()
 
 def get_file_view(filename):
     for w in sublime.windows():
@@ -74,75 +36,22 @@ def get_dep_text(filename):
         f.close()
         return ct
 
-def init_file(filename, no_refs=False):
-
-    is_open = filename in open_files
-
-    # If no refs is true and the file is already open, exit
-    if no_refs and is_open: return
-
-    content = get_dep_text(filename)
-    deps = re.findall("/// *<reference path *\='(.*?)'", content)
-
-    if not is_open:
-        open_files.add(filename)
-        serv_add_file(filename)
-    else:
-        serv_update_file(filename, content)
-
-    for dep in deps:
-        dep_unix = dep.replace("\\", "/")
-        dep_path = path.join(path.split(filename)[0], dep_unix)
-        init_file(dep_path, no_refs=True)
-
-
-def init_view(view):
-    print "is_ts view :", is_ts(view)
-    if is_ts(view):
-        views_text[view.file_name()] = get_all_text(view)
-        init_file(view.file_name())
-        serv_update_file(view.file_name(), views_text[view.file_name()])
-
-views_text = {}
-
-def format_diffs(seqmatcher, new_content):
-    return [(oc[1], oc[2], new_content[oc[3]:oc[4]] if oc[0] == 'insert' else "")
+def format_diffs(old_content, new_content):
+    seqmatcher = difflib.SequenceMatcher(None, old_content, new_content)
+    return [(oc[1], oc[2], new_content[oc[3]:oc[4]] if oc[0] in ['insert', 'replace'] else "")
             for oc in seqmatcher.get_opcodes()
-            if oc[0] in ['insert', 'delete']]
+            if oc[0] in ['insert', 'delete', 'replace']]
 
-
-def test_diff_python_side(old_content, minChar, limChar, new_text):
-    print "TEST_DIFF_PYTHON_SIDE"
-    prefix = old_content[0:minChar]
-    suffix = old_content[limChar:]
-    print prefix + new_text + suffix;
-
-
-def update_server_code(filename, new_content):
-    old_content = views_text[filename]
-    print "IN UPDATE SERVER CODE"
-
-    s = difflib.SequenceMatcher(None, old_content, new_content)
-    print format_diffs(s, new_content)
-
-    views_text[filename] = new_content
-    for diff in format_diffs(s, new_content):
-        serv_edit_file(filename, *diff)
+prefixes = {
+    "method": u"◉",
+    "property": u"●"
+}
 
 def format_completion_entry(c_entry):
-    prefix = ""
-    if c_entry["kind"] == "method":
-        prefix = u"◉"
-    else:
-        prefix = u"●"
+    prefix = prefixes[c_entry["kind"]]
     prefix += " "
-
     middle = c_entry["name"]
-    if c_entry["kind"] == "method":
-        middle += ""
-
     suffix = "\t" + c_entry["type"]
-
     return prefix + middle + suffix
 
 def completions_ts_to_sublime(json_completions):
@@ -151,52 +60,211 @@ def completions_ts_to_sublime(json_completions):
 def ts_errors_to_regions(ts_errors):
     return [sublime.Region(e["minChar"], e["limChar"]) for e in ts_errors]
 
-global errors_intervals
-errors_intervals = {}
-def set_errors_intervals(ts_errors):
-    global errors_intervals
-    errors_intervals = {}
-    for e in ts_errors:
-        errors_intervals[(e["minChar"], e["limChar"])] = e["message"]
-
-def get_error_for_pos(pos):
-    for (l, h), error in errors_intervals.iteritems():
-        if pos >= l and pos <= h:
-            return error
-    return None
+def text_from_diff(old_content, minChar, limChar, new_text):
+    prefix = old_content[0:minChar]
+    suffix = old_content[limChar:]
+    return (prefix + new_text + suffix)
 
 def get_pos(view):
     return view.sel()[0].begin()
 
-def handle_errors(view, ts_errors):
-    set_errors_intervals(ts_errors)
-    view.add_regions(
-        "typescript_errors",
-        ts_errors_to_regions(ts_errors),
-        "typescript.errors",
-        "cross",
-        sublime.DRAW_EMPTY_AS_OVERWRITE
-    )
+def get_plugin_path():
+    p = path.split(path.abspath(__file__))[0]
+    print "IN GET PLUGIN PATH", p
+    return p
 
-def show_current_error(view):
-    pos = view.sel()[0].begin()
+def plugin_file(file_path):
+    return path.join(get_plugin_path(), file_path)
 
-def set_error_status(view):
-    error = get_error_for_pos(get_pos(view))
-    if error:
-        sublime.status_message(error)
-    else:
-        sublime.status_message("")
+# ================ SERVER AND COMMUNICATION HELPERS =============== #
 
+class PluginInstance(object):
+    def __init__(self):
+        print "PLUGIN_FILE ", plugin_file("bin/main.js")
+        self.p = Popen(["node", plugin_file("bin/main.js")], stdin=PIPE, stdout=PIPE)
+        self.open_files = set()
+        self.views_text = {}
+        self.errors_intervals = {}
+        self.serv_add_file(plugin_file("bin/lib.d.ts"))
+
+    def msg(self, *args):
+        res = None
+        message = json.dumps(args) + "\n"
+        t = time()
+        self.p.stdin.write(message)
+        res = json.loads(self.p.stdout.readline())
+        return res
+
+    def serv_add_file(self, file_name):
+    	resp = self.msg("add_file", file_name)
+
+    def serv_update_file(self, file_name, content):
+        resp = self.msg("update_script", file_name, content)
+
+    def serv_edit_file(self, file_name, min_char, new_char, new_text):
+        resp = self.msg("edit_script", file_name, min_char, new_char, new_text)
+
+    def serv_get_completions(self, file_name, pos, is_member):
+        resp = self.msg("complete", file_name, pos, is_member)
+        return resp["result"]
+
+    def serv_get_errors(self, file_name):
+        resp = self.msg("get_errors", file_name)
+        return resp["result"]
+
+
+    def init_file(self, filename):
+
+        is_open = filename in self.open_files
+
+        # If the file is already open, exit
+        if is_open: 
+            # TODO: This works but may be sub-ideal performance wise, and useless
+            serv_update_file(filename, content)
+            return
+
+        content = get_dep_text(filename)
+        deps = re.findall("/// *<reference path *\='(.*?)'", content)
+
+        if not is_open:
+            self.open_files.add(filename)
+            self.serv_add_file(filename)
+
+        for dep in deps:
+            dep_unix = dep.replace("\\", "/")
+            dep_path = path.join(path.split(filename)[0], dep_unix)
+            self.init_file(dep_path)
+
+    def init_view(self, view):
+        fname = view.file_name()
+        if is_ts(view):
+            self.views_text[fname] = get_all_text(view)
+            self.init_file(fname)
+            self.serv_update_file(fname, self.views_text[fname])
+
+    def update_server_code(self, filename, new_content):
+        old_content = self.views_text[filename]
+        bydiff_content = old_content
+
+        diffs = format_diffs(old_content, new_content)
+
+        for diff in reversed(diffs):
+            bydiff_content = text_from_diff(bydiff_content, *diff)
+            self.serv_edit_file(filename, *diff)
+
+        if bydiff_content != new_content:
+            print "ERROR WITH DIFF ALGORITHM"
+            raise Exception("ERROR WITH DIFF ALGORITHM")
+        else:
+            self.views_text[filename] = new_content
+
+
+# ========================= ERROR HANDLING STUFF ======================== #
+
+    def set_errors_intervals(self, ts_errors):
+        self.errors_intervals = {}
+        for e in ts_errors:
+            self.errors_intervals[(e["minChar"], e["limChar"])] = e["message"]
+
+    def handle_errors(self, view, ts_errors):
+        self.set_errors_intervals(ts_errors)
+        view.add_regions(
+            "typescript_errors",
+            ts_errors_to_regions(ts_errors),
+            "typescript.errors",
+            "cross",
+            sublime.DRAW_EMPTY_AS_OVERWRITE
+        )
+
+    def get_error_for_pos(self, pos):
+        for (l, h), error in self.errors_intervals.iteritems():
+            if pos >= l and pos <= h:
+                return error
+        return None
+
+    def set_error_status(self, view):
+        error = self.get_error_for_pos(get_pos(view))
+        if error:
+            sublime.status_message(error)
+        else:
+            sublime.status_message("")
+
+
+# ========================= STATUS MESSAGE MANAGEMENT ============= #
+
+class AtomicValue:
+    def __init__(self):
+        self.val = 0
+        self.lock = RLock()
+
+    def inc(self):
+        self.lock.acquire()
+        self.val += 1
+        self.lock.release()
+
+    def dec(self):
+        self.lock.acquire()
+        self.val -= 1
+        self.lock.release()
+
+loading_files = AtomicValue()
+
+def status_msg_setter(text):
+    def set_status_msg():
+        sublime.status_message(text)
+    return set_status_msg
+
+def loading_status_msg():
+    msg_base = "Loading typescript plugin"
+    is_loading = False
+    for el in cycle("|/-\\"):
+        if loading_files.val > 0:
+            is_loading = True
+            msg = msg_base + " " + el
+            sublime.set_timeout(status_msg_setter(msg), 0)
+        elif is_loading == True:
+            is_loading = False
+            sublime.set_timeout(status_msg_setter(""), 0)
+        sleep(0.1)
+
+Thread(target=loading_status_msg).start()
 
 # ========================= INITIALIZATION ======================== #
 
 # Iterate on every open view, add file to server if needed
-for window in sublime.windows():
-	for view in window.views():
-		init_view(view)
+# for window in sublime.windows():
+# 	for view in window.views():
+# 		init_view(view)
 
-serv_add_file("bin/lib.d.ts")
+plugin_instances = {}
+project_files = {}
+
+def init_view(view):
+    def init_view_async():
+        loading_files.inc()
+        project_file = get_project_file(view)
+        if project_file in plugin_instances:
+            plugin_instances[project_file].init_view(view)
+        else:
+            plugin = PluginInstance()
+            plugin_instances[project_file] = plugin
+            plugin.init_view(view)
+        loading_files.dec()
+
+    Thread(target=init_view_async).start()
+
+
+def get_project_file(view):
+    filename = view.file_name()
+    if filename in project_files:
+        return project_files[filename]
+    else:
+        pfile = project.find_project_file(filename) 
+        project_files[filename] = pfile
+        return pfile
+
+def get_plugin(view):
+    return plugin_instances[get_project_file(view)]
 
 # ========================= EVENT HANDLERS ======================== #
 
@@ -207,18 +275,20 @@ class TypescriptComplete(sublime_plugin.TextCommand):
         for region in self.view.sel():
             self.view.insert(edit, region.end(), characters)
         # Update the code on the server side for the current file
-        update_server_code(self.view.file_name(), get_all_text(self.view))
+        get_plugin(self.view).update_server_code(self.view.file_name(), get_all_text(self.view))
         self.view.run_command("auto_complete")
 
 class AsyncWorker(object):
 
     def __init__(self, view):
         self.view = view
+        self.plugin = get_plugin(view)
         self.content = view.substr(sublime.Region(0, view.size()))
         self.filename = view.file_name()
         self.view_id = view.buffer_id()
         self.errors = None
         self.sem = Semaphore()
+        self.sem.acquire()
         self.has_round_queued = False
 
     def do_more_work(self):
@@ -228,8 +298,8 @@ class AsyncWorker(object):
             self.has_round_queued = True
 
     def final(self):
-        handle_errors(self.view, self.errors)
-        set_error_status(self.view)
+        self.plugin.handle_errors(self.view, self.errors)
+        self.plugin.set_error_status(self.view)
         self.has_round_queued = False
 
     def work(self):
@@ -237,10 +307,11 @@ class AsyncWorker(object):
             # Wait on semaphore
             self.sem.acquire()
             # Update the script
-            update_server_code(self.filename, self.content)
+            self.plugin.update_server_code(self.filename, self.content)
             # Get errors
-            self.errors = serv_get_errors(self.filename)
+            self.errors = self.plugin.serv_get_errors(self.filename)
             sublime.set_timeout(self.final, 1)
+            self.content = self.plugin.views_text[self.filename]
             sleep(1.3)
 
 
@@ -257,8 +328,9 @@ class TestEvent(sublime_plugin.EventListener):
         return self.workers[bid]
 
     def on_load(self, view):
-        print "IN ON LOAD"
-        init_view(view)
+        print "IN ON LOAD FOR VIEW : ", view.file_name()
+        if is_ts(view):
+            init_view(view)
 
     def on_modified(self, view):
         if view.is_loading(): return
@@ -268,7 +340,7 @@ class TestEvent(sublime_plugin.EventListener):
 
     def on_selection_modified(self, view):
         if is_ts(view):
-            set_error_status(view)
+            get_plugin(view).set_error_status(view)
 
     def on_query_completions(self, view, prefix, locations):
         if is_ts(view):
@@ -277,8 +349,8 @@ class TestEvent(sublime_plugin.EventListener):
             line = view.substr(sublime.Region(view.word(pos-1).a, pos))
             # Determine wether it is a member completion or not
             is_member = line.endswith(".")
-            completions_json = serv_get_completions(view.file_name(), pos, is_member)
-            set_error_status(view)
+            completions_json = get_plugin(view).serv_get_completions(view.file_name(), pos, is_member)
+            get_plugin(view).set_error_status(view)
             return completions_ts_to_sublime(completions_json)
 
 
@@ -286,5 +358,6 @@ class TestEvent(sublime_plugin.EventListener):
         if key == "typescript":
             view = sublime.active_window().active_view()
             return is_ts(view)
+
 
 # msg("add_file", "bin/test_code.ts")
