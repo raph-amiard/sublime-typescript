@@ -9,6 +9,7 @@ from time import sleep, time
 import re
 import difflib
 from core import project
+from core import settings
 from itertools import cycle
 
 # ========================== GENERAL HELPERS ======================= #
@@ -69,9 +70,7 @@ def get_pos(view):
     return view.sel()[0].begin()
 
 def get_plugin_path():
-    p = path.split(path.abspath(__file__))[0]
-    print "IN GET PLUGIN PATH", p
-    return p
+    return settings.PLUGIN_PATH
 
 def plugin_file(file_path):
     return path.join(get_plugin_path(), file_path)

@@ -1,5 +1,10 @@
-all: bin/lib.d.ts bin/typescript.js bin/typescriptServices.js
-	tsc src/ts/main.ts --out bin/main.js
+all: bin/lib.d.ts bin/typescript.js bin/typescriptServices.js core/settings.py bin/main.js
+
+bin/main.js:
+	-tsc src/ts/main.ts --out bin/main.js
+
+core/settings.py:
+	echo "PLUGIN_PATH = \"`pwd`\"" >> core/settings.py
 
 bin/lib.d.ts: bin
 	cp lib/typescript/bin/lib.d.ts bin/
@@ -15,3 +20,4 @@ bin:
 
 clean:
 	rm -rf bin/*
+	rm -f core/settings.py
