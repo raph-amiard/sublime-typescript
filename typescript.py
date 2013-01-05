@@ -45,7 +45,8 @@ def format_diffs(old_content, new_content):
 
 prefixes = {
     "method": u"◉",
-    "property": u"●"
+    "property": u"●",
+    "class":u"⊗"
 }
 
 def format_completion_entry(c_entry):
@@ -80,11 +81,21 @@ def plugin_file(file_path):
 class PluginInstance(object):
     def __init__(self):
         print "PLUGIN_FILE ", plugin_file("bin/main.js")
-        self.p = Popen(["node", plugin_file("bin/main.js")], stdin=PIPE, stdout=PIPE)
         self.open_files = set()
         self.views_text = {}
         self.errors_intervals = {}
-        self.serv_add_file(plugin_file("bin/lib.d.ts"))
+        self.init_sem = Semaphore()
+        
+        def init_async():
+            loading_files.inc()
+            self.p = Popen(["node", plugin_file("bin/main.js")], stdin=PIPE, stdout=PIPE)
+            self.serv_add_file(plugin_file("bin/lib.d.ts"))
+            loading_files.dec()
+            print "OUT OF INIT ASYNC"
+            self.init_sem.release()
+
+        self.init_sem.acquire()
+        Thread(target=init_async).start()
 
     def msg(self, *args):
         res = None
@@ -113,33 +124,31 @@ class PluginInstance(object):
 
 
     def init_file(self, filename):
-
         is_open = filename in self.open_files
-
-        # If the file is already open, exit
-        if is_open: 
-            # TODO: This works but may be sub-ideal performance wise, and useless
-            serv_update_file(filename, content)
-            return
-
         content = get_dep_text(filename)
-        deps = re.findall("/// *<reference path *\='(.*?)'", content)
-
         if not is_open:
+            deps = re.findall("/// *<reference path *\='(.*?)'", content)
             self.open_files.add(filename)
             self.serv_add_file(filename)
-
-        for dep in deps:
-            dep_unix = dep.replace("\\", "/")
-            dep_path = path.join(path.split(filename)[0], dep_unix)
-            self.init_file(dep_path)
+            for dep in deps:
+                dep_unix = dep.replace("\\", "/")
+                dep_path = path.join(path.split(filename)[0], dep_unix)
+                self.init_file(dep_path)
+        self.serv_update_file(filename, content)
 
     def init_view(self, view):
         fname = view.file_name()
-        if is_ts(view):
-            self.views_text[fname] = get_all_text(view)
+
+        def init_view_async():
+            self.init_sem.acquire()
+            loading_files.inc()
             self.init_file(fname)
             self.serv_update_file(fname, self.views_text[fname])
+            loading_files.dec()
+            self.init_sem.release()
+
+        if is_ts(view):
+            Thread(target=init_view_async).start()
 
     def update_server_code(self, filename, new_content):
         old_content = self.views_text[filename]
@@ -239,18 +248,11 @@ plugin_instances = {}
 project_files = {}
 
 def init_view(view):
-    def init_view_async():
-        loading_files.inc()
-        project_file = get_project_file(view)
-        if project_file in plugin_instances:
-            plugin_instances[project_file].init_view(view)
-        else:
-            plugin = PluginInstance()
-            plugin_instances[project_file] = plugin
-            plugin.init_view(view)
-        loading_files.dec()
-
-    Thread(target=init_view_async).start()
+    project_file = get_project_file(view)
+    if project_file not in plugin_instances:
+        plugin_instances[project_file] = PluginInstance()
+    plugin_instances[project_file].views_text[view.file_name()] = get_all_text(view)
+    plugin_instances[project_file].init_view(view)
 
 
 def get_project_file(view):
