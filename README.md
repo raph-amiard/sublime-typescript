@@ -23,4 +23,12 @@ For the moment the functionnality is very basic :
 - Errors get highlighted and the error message shows in the status bar
 - Autocompletion
 
-By default, a new instance of the plugin server is created for every file. If you want to specify to the plugin that some files are part of the same project, put a .sublimets file in the folder.
+[Autocompletion feature screenshot](http://i.imgur.com/UR1kn.png)
+
+### Projects
+
+By default, a new instance of the plugin server is created for every file.
+The TypeScript language service has an odd behaviour, as in, every file you add to the service will be considered to
+be in the same compilation unit as the others.
+If you want to specify to the plugin that some files are part of the same project, put a .sublimets file in the folder.
+If you don't do that, every file will be opened in a separate plugin instance
