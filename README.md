@@ -23,7 +23,7 @@ For the moment the functionnality is very basic :
 - Errors get highlighted and the error message shows in the status bar
 - Autocompletion
 
-[Autocompletion feature screenshot](http://i.imgur.com/UR1kn.png)
+![Autocompletion feature screenshot](http://i.imgur.com/UR1kn.png)
 
 ### Projects
 
