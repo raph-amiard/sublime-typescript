@@ -1,14 +1,15 @@
-sublime-typescript
+Sublime-Typescript
 ==================
 
-A sublime plugin for the typescript language 
+A Sublime Text plugin for the Typescript language 
 
 Installation
 ------------
 
-You need to have node and typescript installed before anything.
+You need to have node.js and Typescript installed before anything.
 
 Clone the repository in your sublime "Packages" directory, and run the makefile that will compile the plugin and do some configuration
+
 ~~~sh
 git clone https://github.com/raph-amiard/sublime-typescript --recursive
 make
@@ -20,8 +21,8 @@ Usage
 -----
 
 For the moment the functionnality is very basic :
-- Errors get highlighted and the error message shows in the status bar
-- Autocompletion
+- Errors get highlighted and the errors messages shows in the status bar
+- Autocompletion works (quite well thanks to the TypeScript language service)
 
 ![Autocompletion feature screenshot](http://i.imgur.com/UR1kn.png)
 
