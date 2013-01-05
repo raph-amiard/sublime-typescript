@@ -56,6 +56,23 @@ def format_completion_entry(c_entry):
     suffix = "\t" + c_entry["type"]
     return prefix + middle + suffix
 
+global async_api_result
+async_api_result = None
+async_call_lock = Semaphore()
+def async_api_call(func, *args, **kwargs):
+    
+    def timeout_func():
+        global async_api_result
+        async_api_result = func(*args, **kwargs)
+        async_call_lock.release()
+
+    async_call_lock.acquire()
+    sublime.set_timeout(timeout_func, 0)
+    async_call_lock.acquire()
+    async_call_lock.release()
+    return async_api_result
+
+
 def completions_ts_to_sublime(json_completions):
     return [(format_completion_entry(c), c["name"]) for c in json_completions["entries"]]
 
@@ -125,7 +142,7 @@ class PluginInstance(object):
 
     def init_file(self, filename):
         is_open = filename in self.open_files
-        content = get_dep_text(filename)
+        content = async_api_call(get_dep_text, filename)
         if not is_open:
             deps = re.findall("/// *<reference path *\='(.*?)'", content)
             self.open_files.add(filename)
