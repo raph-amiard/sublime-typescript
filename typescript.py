@@ -88,6 +88,7 @@ def get_pos(view):
     return view.sel()[0].begin()
 
 def get_plugin_path():
+    print "PLUGIN PATH : ", settings.PLUGIN_PATH
     return settings.PLUGIN_PATH
 
 def plugin_file(file_path):
@@ -102,7 +103,7 @@ class PluginInstance(object):
         self.views_text = {}
         self.errors_intervals = {}
         self.init_sem = Semaphore()
-        
+
         def init_async():
             loading_files.inc()
             self.p = Popen(["node", plugin_file("bin/main.js")], stdin=PIPE, stdout=PIPE)
