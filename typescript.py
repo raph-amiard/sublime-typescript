@@ -94,12 +94,13 @@ def get_plugin_path():
 def plugin_file(file_path):
     return path.join(get_plugin_path(), file_path)
 
+node_path = "node"
+ts_settings = sublime.load_settings("typescript.sublime-settings")
+if ts_settings.has("node_path"):
+    node_path = ts_settings.get("node_path")
+
 def get_node_path():
-    ts_settings = sublime.load_settings("typescript.sublime-settings")
-    if ts_settings.has("node_path"):
-        return ts_settings.get("node_path")
-    else:
-        return "node"
+    return node_path
 
 # ================ SERVER AND COMMUNICATION HELPERS =============== #
 
