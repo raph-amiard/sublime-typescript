@@ -60,7 +60,7 @@ global async_api_result
 async_api_result = None
 async_call_lock = Semaphore()
 def async_api_call(func, *args, **kwargs):
-    
+
     def timeout_func():
         global async_api_result
         async_api_result = func(*args, **kwargs)
@@ -94,6 +94,13 @@ def get_plugin_path():
 def plugin_file(file_path):
     return path.join(get_plugin_path(), file_path)
 
+def get_node_path():
+    ts_settings = sublime.load_settings("typescript.sublime-settings")
+    if ts_settings.has("node_path"):
+        return ts_settings.get("node_path")
+    else:
+        return "node"
+
 # ================ SERVER AND COMMUNICATION HELPERS =============== #
 
 class PluginInstance(object):
@@ -106,7 +113,7 @@ class PluginInstance(object):
 
         def init_async():
             loading_files.inc()
-            self.p = Popen(["node", plugin_file("bin/main.js")], stdin=PIPE, stdout=PIPE)
+            self.p = Popen([get_node_path(), plugin_file("bin/main.js")], stdin=PIPE, stdout=PIPE)
             self.serv_add_file(plugin_file("bin/lib.d.ts"))
             loading_files.dec()
             print "OUT OF INIT ASYNC"

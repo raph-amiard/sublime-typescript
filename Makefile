@@ -1,7 +1,7 @@
 all: bin/lib.d.ts bin/typescript.js bin/typescriptServices.js core/settings.py bin/main.js
 
 bin/main.js:
-	-tsc src/ts/main.ts --out bin/main.js
+	-node lib/typescript/bin/tsc.js src/ts/main.ts --out bin/main.js
 
 core/settings.py:
 	echo "PLUGIN_PATH = \"`pwd`\"" >> core/settings.py

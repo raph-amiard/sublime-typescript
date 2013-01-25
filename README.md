@@ -26,6 +26,20 @@ For the moment the functionnality is very basic :
 
 ![Autocompletion feature screenshot](http://i.imgur.com/UR1kn.png)
 
+### Settings
+
+All the settings discussed here can be set either in the typescript.sublime-settings file of the plugin folder, or in your own typescript.sublime-settings, as is usual with sublime text configuration
+
+#### Node path
+
+If node isn't on your path, or you want to set the node executable path manually, you can set the "node_path" key to refer to the node executable path, **including the executable name**.
+
+~~~json
+{
+    "node_path":"/my/path/to/node/node"
+}
+~~~
+
 ### Projects
 
 By default, a new instance of the plugin server is created for every file.
