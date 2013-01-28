@@ -46,11 +46,34 @@ def format_diffs(old_content, new_content):
 prefixes = {
     "method": u"◉",
     "property": u"●",
-    "class":u"⊗"
+    "class":u"◆",
+    "interface":u"◇",
+    "keyword":u"∆",
+    "variable": u"∨",
 }
 
+js_id_re = re.compile(
+    ur'^[_$a-zA-Z\u00FF-\uFFFF][_$a-zA-Z0-9\u00FF-\uFFFF]*'
+)
+
+def is_member_completion(line):
+    
+    def partial_completion():
+        print "IN partial_completion"
+        print line
+        sp = line.split(".")
+        if len(sp) > 1:
+            print "OKAY"
+            return js_id_re.match(sp[-1]) is not None
+        print "NOTOKAY"
+        return False
+
+    return line.endswith(".") or partial_completion()
+
+
+
 def format_completion_entry(c_entry):
-    prefix = prefixes[c_entry["kind"]]
+    prefix = prefixes.get(c_entry["kind"], u"-")
     prefix += " "
     middle = c_entry["name"]
     suffix = "\t" + c_entry["type"]
@@ -128,7 +151,8 @@ class PluginInstance(object):
         message = json.dumps(args) + "\n"
         t = time()
         self.p.stdin.write(message)
-        res = json.loads(self.p.stdout.readline())
+        msg_content = self.p.stdout.readline()
+        res = json.loads(msg_content)
         return res
 
     def serv_add_file(self, file_name):
@@ -373,10 +397,13 @@ class TestEvent(sublime_plugin.EventListener):
         if is_ts(view):
             # Get the position of the cursor (first one in case of multiple sels)
             pos = view.sel()[0].begin()
-            line = view.substr(sublime.Region(view.word(pos-1).a, pos))
-            # Determine wether it is a member completion or not
-            is_member = line.endswith(".")
-            completions_json = get_plugin(view).serv_get_completions(view.file_name(), pos, is_member)
+            line = view.substr(sublime.Region(view.line(pos-1).a, pos))
+            bword_pos = sublime.Region(view.word(pos).a, pos)
+            word = view.substr(bword_pos)
+            print "WORD : ", word
+            completions_json = get_plugin(view).serv_get_completions(
+                view.file_name(), bword_pos.a, is_member_completion(line)
+            )
             get_plugin(view).set_error_status(view)
             return completions_ts_to_sublime(completions_json)
 
