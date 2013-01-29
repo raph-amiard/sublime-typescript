@@ -10,9 +10,27 @@ import re
 import difflib
 from core import project
 from core import settings
-from itertools import cycle
+from itertools import cycle, chain
+from collections import defaultdict
 
 # ========================== GENERAL HELPERS ======================= #
+
+# === Helpers for async API calls
+global async_api_result
+async_api_result = None
+async_call_lock = Semaphore()
+def async_api_call(func, *args, **kwargs):
+
+    def timeout_func():
+        global async_api_result
+        async_api_result = func(*args, **kwargs)
+        async_call_lock.release()
+
+    async_call_lock.acquire()
+    sublime.set_timeout(timeout_func, 0)
+    async_call_lock.acquire()
+    async_call_lock.release()
+    return async_api_result
 
 def is_ts(view):
     return view.file_name() and view.file_name().endswith(".ts")
@@ -57,20 +75,12 @@ js_id_re = re.compile(
 )
 
 def is_member_completion(line):
-    
     def partial_completion():
-        print "IN partial_completion"
-        print line
         sp = line.split(".")
         if len(sp) > 1:
-            print "OKAY"
             return js_id_re.match(sp[-1]) is not None
-        print "NOTOKAY"
         return False
-
     return line.endswith(".") or partial_completion()
-
-
 
 def format_completion_entry(c_entry):
     prefix = prefixes.get(c_entry["kind"], u"-")
@@ -79,25 +89,19 @@ def format_completion_entry(c_entry):
     suffix = "\t" + c_entry["type"]
     return prefix + middle + suffix
 
-global async_api_result
-async_api_result = None
-async_call_lock = Semaphore()
-def async_api_call(func, *args, **kwargs):
+def partition_by(lst, disc):
+    partitions = defaultdict(list)
+    for el in lst:
+        partitions[disc(el)].append(el)
+    return partitions.values()
 
-    def timeout_func():
-        global async_api_result
-        async_api_result = func(*args, **kwargs)
-        async_call_lock.release()
-
-    async_call_lock.acquire()
-    sublime.set_timeout(timeout_func, 0)
-    async_call_lock.acquire()
-    async_call_lock.release()
-    return async_api_result
-
+def sort_completions(entries):
+    return [(format_completion_entry(item), item["name"])
+            for sublist in partition_by(entries, lambda entry: entry["kind"])
+            for item in sorted(sublist, key=lambda entry: entry["name"])]
 
 def completions_ts_to_sublime(json_completions):
-    return [(format_completion_entry(c), c["name"]) for c in json_completions["entries"]]
+    return sort_completions(json_completions["entries"])
 
 def ts_errors_to_regions(ts_errors):
     return [sublime.Region(e["minChar"], e["limChar"]) for e in ts_errors]
