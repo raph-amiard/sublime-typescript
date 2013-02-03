@@ -6,16 +6,16 @@ A Sublime Text plugin for the Typescript language
 Installation
 ------------
 
-You need to have node.js and Typescript installed before anything.
+You need to have node.js installed before anything.
 
-Clone the repository in your sublime "Packages" directory, and run the makefile that will compile the plugin and do some configuration
+Clone the repository in your sublime "Packages" directory. You need to clone with the --recursive option, or to put the typescript *source* into the lib/typescript directory.
 
 ~~~sh
 git clone https://github.com/raph-amiard/sublime-typescript --recursive
-make
 ~~~
 
 After that you're set and you can use the plugin !
+First run might take long to set up because the plugin is actually compiling it's JS part the first time you will use it.
 
 Usage
 -----
