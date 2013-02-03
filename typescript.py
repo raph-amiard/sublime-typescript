@@ -10,9 +10,27 @@ import re
 import difflib
 from core import project
 from core import settings
-from itertools import cycle
+from itertools import cycle, chain
+from collections import defaultdict
 
 # ========================== GENERAL HELPERS ======================= #
+
+# === Helpers for async API calls
+global async_api_result
+async_api_result = None
+async_call_lock = Semaphore()
+def async_api_call(func, *args, **kwargs):
+
+    def timeout_func():
+        global async_api_result
+        async_api_result = func(*args, **kwargs)
+        async_call_lock.release()
+
+    async_call_lock.acquire()
+    sublime.set_timeout(timeout_func, 0)
+    async_call_lock.acquire()
+    async_call_lock.release()
+    return async_api_result
 
 def is_ts(view):
     return view.file_name() and view.file_name().endswith(".ts")
@@ -46,35 +64,44 @@ def format_diffs(old_content, new_content):
 prefixes = {
     "method": u"◉",
     "property": u"●",
-    "class":u"⊗"
+    "class":u"◆",
+    "interface":u"◇",
+    "keyword":u"∆",
+    "variable": u"∨",
 }
 
+js_id_re = re.compile(
+    ur'^[_$a-zA-Z\u00FF-\uFFFF][_$a-zA-Z0-9\u00FF-\uFFFF]*'
+)
+
+def is_member_completion(line):
+    def partial_completion():
+        sp = line.split(".")
+        if len(sp) > 1:
+            return js_id_re.match(sp[-1]) is not None
+        return False
+    return line.endswith(".") or partial_completion()
+
 def format_completion_entry(c_entry):
-    prefix = prefixes[c_entry["kind"]]
+    prefix = prefixes.get(c_entry["kind"], u"-")
     prefix += " "
     middle = c_entry["name"]
     suffix = "\t" + c_entry["type"]
     return prefix + middle + suffix
 
-global async_api_result
-async_api_result = None
-async_call_lock = Semaphore()
-def async_api_call(func, *args, **kwargs):
+def partition_by(lst, disc):
+    partitions = defaultdict(list)
+    for el in lst:
+        partitions[disc(el)].append(el)
+    return partitions.values()
 
-    def timeout_func():
-        global async_api_result
-        async_api_result = func(*args, **kwargs)
-        async_call_lock.release()
-
-    async_call_lock.acquire()
-    sublime.set_timeout(timeout_func, 0)
-    async_call_lock.acquire()
-    async_call_lock.release()
-    return async_api_result
-
+def sort_completions(entries):
+    return [(format_completion_entry(item), item["name"])
+            for sublist in partition_by(entries, lambda entry: entry["kind"])
+            for item in sorted(sublist, key=lambda entry: entry["name"])]
 
 def completions_ts_to_sublime(json_completions):
-    return [(format_completion_entry(c), c["name"]) for c in json_completions["entries"]]
+    return sort_completions(json_completions["entries"])
 
 def ts_errors_to_regions(ts_errors):
     return [sublime.Region(e["minChar"], e["limChar"]) for e in ts_errors]
@@ -128,7 +155,8 @@ class PluginInstance(object):
         message = json.dumps(args) + "\n"
         t = time()
         self.p.stdin.write(message)
-        res = json.loads(self.p.stdout.readline())
+        msg_content = self.p.stdout.readline()
+        res = json.loads(msg_content)
         return res
 
     def serv_add_file(self, file_name):
@@ -374,10 +402,13 @@ class TestEvent(sublime_plugin.EventListener):
         if is_ts(view):
             # Get the position of the cursor (first one in case of multiple sels)
             pos = view.sel()[0].begin()
-            line = view.substr(sublime.Region(view.word(pos-1).a, pos))
-            # Determine wether it is a member completion or not
-            is_member = line.endswith(".")
-            completions_json = get_plugin(view).serv_get_completions(view.file_name(), pos, is_member)
+            line = view.substr(sublime.Region(view.line(pos-1).a, pos))
+            bword_pos = sublime.Region(view.word(pos).a, pos)
+            word = view.substr(bword_pos)
+            print "WORD : ", word
+            completions_json = get_plugin(view).serv_get_completions(
+                view.file_name(), bword_pos.a, is_member_completion(line)
+            )
             get_plugin(view).set_error_status(view)
             return completions_ts_to_sublime(completions_json)
 
