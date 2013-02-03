@@ -8,16 +8,20 @@ REPO_NAME = "sublime-typescript"
 PLUGIN_FILE_NAME = "typescript.py"
 
 ts_settings = sublime.load_settings("typescript.sublime-settings")
+node_path = "node"
+
+startupinfo = subprocess.STARTUPINFO()
+startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+
+if ts_settings.has("node_path"):
+    node_path = ts_settings.get("node_path")
 def get_node_path():
-    node_path = "node"
-    if ts_settings.has("node_path"):
-        node_path = ts_settings.get("node_path")
     return node_path
 
 def check_for_node():
     node_path = get_node_path()
     try:
-        subprocess.call([node_path, "--help"])
+        subprocess.call([node_path, "--help"], startupinfo = startupinfo)
     except Exception, e:
         sublime.error_message("The node executable hasn't been found, you might want to set it in your typescript settings by adding the \"node_path\" key")
         raise e
@@ -41,10 +45,12 @@ def check_plugin_path():
 
     # Write the plugin path into the settings file
     ts_settings.set("plugin_path", plugin_path)
+    sublime.save_settings("typescript.sublime-settings")
 
     return True
 
 def compile_plugin(plugin_path):
+    print "IN COMPILE PLUGIN"
     def plugin_file(f):
         return path.join(plugin_path, f)
 
@@ -53,7 +59,11 @@ def compile_plugin(plugin_path):
     if not path.exists(bindir):
         os.makedirs(bindir)
 
-    subprocess.call([get_node_path(), plugin_file("lib/typescript/bin/tsc.js"), plugin_file("src/ts/main.ts"), "--out", plugin_file("bin/main.js")])
+    subprocess.call([get_node_path(), 
+                     plugin_file("lib/typescript/bin/tsc.js"), 
+                     plugin_file("src/ts/main.ts"), 
+                     "--out", plugin_file("bin/main.js")], 
+                     startupinfo = startupinfo)
 
     # Copy needed files to bin directory
     shutil.copyfile(plugin_file("lib/typescript/bin/typescript.js"),
