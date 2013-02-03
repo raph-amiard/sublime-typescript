@@ -132,7 +132,7 @@ class PluginInstance(object):
         return res
 
     def serv_add_file(self, file_name):
-    	resp = self.msg("add_file", file_name)
+        resp = self.msg("add_file", file_name)
 
     def serv_update_file(self, file_name, content):
         resp = self.msg("update_script", file_name, content)
@@ -153,7 +153,8 @@ class PluginInstance(object):
         is_open = filename in self.open_files
         content = async_api_call(get_dep_text, filename)
         if not is_open:
-            deps = re.findall("/// *<reference path *\='(.*?)'", content)
+            deps = [ref[1:-1] for ref in
+                    re.findall("/// *<reference path *\=('.*?'|\".*?\")", content)]
             self.open_files.add(filename)
             self.serv_add_file(filename)
             for dep in deps:
