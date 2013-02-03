@@ -2,8 +2,10 @@
 
 import sublime, sublime_plugin
 from subprocess import Popen, PIPE
+import subprocess
 import json
 from os import path
+import os
 from threading import Thread, RLock, Semaphore
 from time import sleep, time
 import re
@@ -141,7 +143,19 @@ class PluginInstance(object):
 
         def init_async():
             loading_files.inc()
-            self.p = Popen([get_node_path(), plugin_file("bin/main.js")], stdin=PIPE, stdout=PIPE)
+            kwargs = {}
+            errorlog = None
+
+            if os.name == 'nt':
+                errorlog = open(os.devnull, 'w')
+                startupinfo = subprocess.STARTUPINFO()
+                startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+                kwargs = {"stderr":errorlog, "startupinfo":startupinfo}
+            self.p = Popen([get_node_path(), plugin_file("bin/main.js")], stdin=PIPE, stdout=PIPE, **kwargs)
+
+            if errorlog:
+                errorlog.close()
+
             self.serv_add_file(plugin_file("bin/lib.d.ts"))
             loading_files.dec()
             print "OUT OF INIT ASYNC"
