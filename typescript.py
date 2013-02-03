@@ -10,7 +10,7 @@ from threading import Thread, RLock, Semaphore
 from time import sleep, time
 import re
 import difflib
-from core import project, settings, install
+from core import project, install
 from itertools import cycle, chain
 from collections import defaultdict
 
@@ -35,9 +35,9 @@ ts_settings = sublime.load_settings("typescript.sublime-settings")
 
 install.check_for_node()
 do_compile = install.check_plugin_path()
+plugin_path = ts_settings.get("plugin_path")
 def install_helper():
     loading_files.inc()
-    plugin_path = ts_settings.get("plugin_path")
     install.compile_plugin(plugin_path)
     loading_files.dec()
 thread_install = None
@@ -147,7 +147,7 @@ def get_pos(view):
     return view.sel()[0].begin()
 
 def get_plugin_path():
-    return settings.PLUGIN_PATH
+    return plugin_path
 
 def plugin_file(file_path):
     return path.join(get_plugin_path(), file_path)
