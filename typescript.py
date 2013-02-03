@@ -10,10 +10,40 @@ from threading import Thread, RLock, Semaphore
 from time import sleep, time
 import re
 import difflib
-from core import project
-from core import settings
+from core import project, settings, install
 from itertools import cycle, chain
 from collections import defaultdict
+
+class AtomicValue:
+    def __init__(self):
+        self.val = 0
+        self.lock = RLock()
+
+    def inc(self):
+        self.lock.acquire()
+        self.val += 1
+        self.lock.release()
+
+    def dec(self):
+        self.lock.acquire()
+        self.val -= 1
+        self.lock.release()
+
+loading_files = AtomicValue()
+
+ts_settings = sublime.load_settings("typescript.sublime-settings")
+
+install.check_for_node()
+do_compile = install.check_plugin_path()
+def install_helper():
+    loading_files.inc()
+    plugin_path = ts_settings.get("plugin_path")
+    install.compile_plugin(plugin_path)
+    loading_files.dec()
+thread_install = None
+if do_compile:
+    thread_install = Thread(target=install_helper)
+    thread_install.start()
 
 # ========================== GENERAL HELPERS ======================= #
 
@@ -117,14 +147,12 @@ def get_pos(view):
     return view.sel()[0].begin()
 
 def get_plugin_path():
-    print "PLUGIN PATH : ", settings.PLUGIN_PATH
     return settings.PLUGIN_PATH
 
 def plugin_file(file_path):
     return path.join(get_plugin_path(), file_path)
 
 node_path = "node"
-ts_settings = sublime.load_settings("typescript.sublime-settings")
 if ts_settings.has("node_path"):
     node_path = ts_settings.get("node_path")
 
@@ -142,10 +170,11 @@ class PluginInstance(object):
         self.init_sem = Semaphore()
 
         def init_async():
+            if thread_install:
+                thread_install.join()
             loading_files.inc()
             kwargs = {}
             errorlog = None
-
             if os.name == 'nt':
                 errorlog = open(os.devnull, 'w')
                 startupinfo = subprocess.STARTUPINFO()
@@ -268,24 +297,6 @@ class PluginInstance(object):
 
 
 # ========================= STATUS MESSAGE MANAGEMENT ============= #
-
-class AtomicValue:
-    def __init__(self):
-        self.val = 0
-        self.lock = RLock()
-
-    def inc(self):
-        self.lock.acquire()
-        self.val += 1
-        self.lock.release()
-
-    def dec(self):
-        self.lock.acquire()
-        self.val -= 1
-        self.lock.release()
-
-loading_files = AtomicValue()
-
 def status_msg_setter(text):
     def set_status_msg():
         sublime.status_message(text)
