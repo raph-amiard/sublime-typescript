@@ -10,8 +10,10 @@ PLUGIN_FILE_NAME = "typescript.py"
 ts_settings = sublime.load_settings("typescript.sublime-settings")
 node_path = "node"
 
-startupinfo = subprocess.STARTUPINFO()
-startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+startupinfo = None
+if os.name == 'nt':
+    startupinfo = subprocess.STARTUPINFO()
+    startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
 
 if ts_settings.has("node_path"):
     node_path = ts_settings.get("node_path")
