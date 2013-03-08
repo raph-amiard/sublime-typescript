@@ -23,7 +23,7 @@ First run might take long to set up, and it will need an internet connection, be
 - Compiling it's JS part the first time you will use it.
 
 After that you can use the plugin offline. 
-If you don't have an internet connection, getting typescript and unzipping it in the lib/typescript directory will work too.
+If you don't have an internet connection, getting typescript sources and putting them in the lib/typescript directory will work too.
 
 Usage
 -----
