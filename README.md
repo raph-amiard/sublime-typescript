@@ -14,11 +14,16 @@ You also need to ensure that the node executable is on your path, or that the "n
 typescript.sublime-settings settings file that sublime text can reach.
 
 ~~~sh
-git clone https://github.com/raph-amiard/sublime-typescript --recursive
+git clone https://github.com/raph-amiard/sublime-typescript
 ~~~
 
 After that you're set and you can use the plugin !
-First run might take long to set up because the plugin is actually compiling it's JS part the first time you will use it.
+First run might take long to set up, and it will need an internet connection, because the plugin is actually :
+- Getting the typescript sources online.
+- Compiling it's JS part the first time you will use it.
+
+After that you can use the plugin offline. 
+If you don't have an internet connection, getting typescript and unzipping it in the lib/typescript directory will work too.
 
 Usage
 -----
