@@ -6,7 +6,7 @@ import os
 
 REPO_NAME = "sublime-typescript"
 PLUGIN_FILE_NAME = "typescript.py"
-TYPESCRIPT_SOURCE_LINK = "http://download-codeplex.sec.s-msft.com/Download/SourceControlFileDownload.ashx?ProjectName=typescript&changeSetId=0c05df1781d6"
+TYPESCRIPT_SOURCE_LINK = "http://download-codeplex.sec.s-msft.com/Download/SourceControlFileDownload.ashx?ProjectName=typescript&changeSetId=6c2e2c092ba8"
 
 ts_settings = sublime.load_settings("typescript.sublime-settings")
 node_path = "node"
