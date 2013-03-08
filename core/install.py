@@ -6,6 +6,7 @@ import os
 
 REPO_NAME = "sublime-typescript"
 PLUGIN_FILE_NAME = "typescript.py"
+TYPESCRIPT_SOURCE_LINK = "http://download-codeplex.sec.s-msft.com/Download/SourceControlFileDownload.ashx?ProjectName=typescript&changeSetId=0c05df1781d6"
 
 ts_settings = sublime.load_settings("typescript.sublime-settings")
 node_path = "node"
@@ -29,7 +30,8 @@ def check_for_node():
         raise e
 
 def check_plugin_path():
-    if ts_settings.has("plugin_path"): return False
+    if ts_settings.has("plugin_path") and path.isdir(ts_settings.get("plugin_path")):
+        return
 
     # Find the plugin path (hackish way because i have no other way)
     packages_path = sublime.packages_path()
@@ -42,29 +44,43 @@ def check_plugin_path():
                     if f == PLUGIN_FILE_NAME:
                         plugin_path = path.join(packages_path, d)
         if not plugin_path:
-            raise Exception("Plugin is not in the expected directory")
+            sublime.error_message("Plugin is not in the expected directory")
     plugin_path = path.abspath(plugin_path)
 
     # Write the plugin path into the settings file
     ts_settings.set("plugin_path", plugin_path)
     sublime.save_settings("typescript.sublime-settings")
 
-    return True
+def needs_to_compile_plugin():
+    return not path.exists(path.join(ts_settings.get("plugin_path"), "bin/main.js"))
 
 def compile_plugin(plugin_path):
-    print "IN COMPILE PLUGIN"
     def plugin_file(f):
         return path.join(plugin_path, f)
+
+    # Check if we got typescript in there
+    typescript_dir = plugin_file("lib/typescript")
+
+    if len(os.listdir(typescript_dir)) == 0:
+        # We need to get typescript and unzip it
+        import urllib
+        import zipfile
+        zf_path = plugin_file("lib/typescript/ts.zip")
+        urllib.urlretrieve(TYPESCRIPT_SOURCE_LINK, zf_path)
+        zipf = zipfile.ZipFile(zf_path)
+        zipf.extractall(path=plugin_file("lib/typescript/"))
+        zipf.close()
+        os.remove(zf_path)
 
     # Compile the plugin
     bindir = plugin_file("bin")
     if not path.exists(bindir):
         os.makedirs(bindir)
 
-    subprocess.call([get_node_path(), 
-                     plugin_file("lib/typescript/bin/tsc.js"), 
-                     plugin_file("src/ts/main.ts"), 
-                     "--out", plugin_file("bin/main.js")], 
+    subprocess.call([get_node_path(),
+                     plugin_file("lib/typescript/bin/tsc.js"),
+                     plugin_file("src/ts/main.ts"),
+                     "--out", plugin_file("bin/main.js")],
                      startupinfo = startupinfo)
 
     # Copy needed files to bin directory

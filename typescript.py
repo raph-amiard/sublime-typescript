@@ -41,7 +41,8 @@ def install_helper():
     install.compile_plugin(plugin_path)
     loading_files.dec()
 thread_install = None
-if do_compile:
+if install.needs_to_compile_plugin():
+    print "DO COMPILE MOTHERFUCKER"
     thread_install = Thread(target=install_helper)
     thread_install.start()
 
