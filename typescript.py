@@ -42,7 +42,6 @@ def install_helper():
     loading_files.dec()
 thread_install = None
 if install.needs_to_compile_plugin():
-    print "DO COMPILE MOTHERFUCKER"
     thread_install = Thread(target=install_helper)
     thread_install.start()
 
@@ -232,7 +231,8 @@ class PluginInstance(object):
             for dep in deps:
                 dep_unix = dep.replace("\\", "/")
                 dep_path = path.join(path.split(filename)[0], dep_unix)
-                self.init_file(dep_path)
+                if os.path.exists(dep_path):
+                    self.init_file(dep_path)
         self.serv_update_file(filename, content)
 
     def init_view(self, view):
