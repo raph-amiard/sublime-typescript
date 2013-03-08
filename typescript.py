@@ -193,6 +193,9 @@ class PluginInstance(object):
         self.init_sem.acquire()
         Thread(target=init_async).start()
 
+    def close_process(self):
+        self.p.terminate()
+
     def msg(self, *args):
         res = None
         message = json.dumps(args) + "\n"
@@ -335,6 +338,13 @@ def init_view(view):
     plugin_instances[project_file].views_text[view.file_name()] = get_all_text(view)
     plugin_instances[project_file].init_view(view)
 
+def close_view(view):
+    project_file = get_project_file(view)
+    if project_file in plugin_instances:
+        plugin_instances[project_file].views_text.pop(view.file_name(), None)
+        if len(plugin_instances[project_file].views_text) == 0:
+            plugin_instances[project_file].close_process()
+            plugin_instances.pop(project_file, None)
 
 def get_project_file(view):
     filename = view.file_name()
@@ -413,6 +423,10 @@ class TestEvent(sublime_plugin.EventListener):
         print "IN ON LOAD FOR VIEW : ", view.file_name()
         if is_ts(view):
             init_view(view)
+
+    def on_close(self, view):
+        if is_ts(view):
+            close_view(view)
 
     def on_modified(self, view):
         if view.is_loading(): return
