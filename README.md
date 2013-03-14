@@ -9,7 +9,6 @@ Installation
 You need to have node.js installed before anything.
 
 Clone the repository in your sublime "Packages" directory. 
-You need to clone with the --recursive option, or to put the typescript *source* into the lib/typescript directory.
 You also need to ensure that the node executable is on your path, or that the "node_path" key is set somewhere in a
 typescript.sublime-settings settings file that sublime text can reach.
 
