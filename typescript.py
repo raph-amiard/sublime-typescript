@@ -94,16 +94,16 @@ def format_diffs(old_content, new_content):
             if oc[0] in ['insert', 'delete', 'replace']]
 
 prefixes = {
-    "method": u"◉",
-    "property": u"●",
-    "class":u"◆",
-    "interface":u"◇",
-    "keyword":u"∆",
-    "variable": u"∨",
+    "method": "◉",
+    "property": "●",
+    "class":"◆",
+    "interface":"◇",
+    "keyword":"∆",
+    "variable": "∨",
 }
 
 js_id_re = re.compile(
-    ur'^[_$a-zA-Z\u00FF-\uFFFF][_$a-zA-Z0-9\u00FF-\uFFFF]*'
+    r'^[_$a-zA-Z\u00FF-\uFFFF][_$a-zA-Z0-9\u00FF-\uFFFF]*'
 )
 
 def is_member_completion(line):
@@ -115,7 +115,7 @@ def is_member_completion(line):
     return line.endswith(".") or partial_completion()
 
 def format_completion_entry(c_entry):
-    prefix = prefixes.get(c_entry["kind"], u"-")
+    prefix = prefixes.get(c_entry["kind"], "-")
     prefix += " "
     middle = c_entry["name"]
     suffix = "\t" + c_entry["type"]
@@ -125,7 +125,7 @@ def partition_by(lst, disc):
     partitions = defaultdict(list)
     for el in lst:
         partitions[disc(el)].append(el)
-    return partitions.values()
+    return list(partitions.values())
 
 def sort_completions(entries):
     return [(format_completion_entry(item), item["name"])
@@ -163,7 +163,7 @@ def get_node_path():
 
 class PluginInstance(object):
     def __init__(self):
-        print "PLUGIN_FILE ", plugin_file("bin/main.js")
+        print("PLUGIN_FILE ", plugin_file("bin/main.js"))
         self.open_files = set()
         self.views_text = {}
         self.errors_intervals = {}
@@ -187,7 +187,7 @@ class PluginInstance(object):
 
             self.serv_add_file(plugin_file("bin/lib.d.ts"))
             loading_files.dec()
-            print "OUT OF INIT ASYNC"
+            print("OUT OF INIT ASYNC")
             self.init_sem.release()
 
         self.init_sem.acquire()
@@ -263,7 +263,7 @@ class PluginInstance(object):
             self.serv_edit_file(filename, *diff)
 
         if bydiff_content != new_content:
-            print "ERROR WITH DIFF ALGORITHM"
+            print("ERROR WITH DIFF ALGORITHM")
             raise Exception("ERROR WITH DIFF ALGORITHM")
         else:
             self.views_text[filename] = new_content
@@ -287,7 +287,7 @@ class PluginInstance(object):
         )
 
     def get_error_for_pos(self, pos):
-        for (l, h), error in self.errors_intervals.iteritems():
+        for (l, h), error in self.errors_intervals.items():
             if pos >= l and pos <= h:
                 return error
         return None
@@ -420,7 +420,7 @@ class TestEvent(sublime_plugin.EventListener):
         return self.workers[bid]
 
     def on_load(self, view):
-        print "IN ON LOAD FOR VIEW : ", view.file_name()
+        print("IN ON LOAD FOR VIEW : ", view.file_name())
         if is_ts(view):
             init_view(view)
 
@@ -445,7 +445,7 @@ class TestEvent(sublime_plugin.EventListener):
             line = view.substr(sublime.Region(view.line(pos-1).a, pos))
             bword_pos = sublime.Region(view.word(pos).a, pos)
             word = view.substr(bword_pos)
-            print "WORD : ", word
+            print("WORD : ", word)
             completions_json = get_plugin(view).serv_get_completions(
                 view.file_name(), bword_pos.a, is_member_completion(line)
             )

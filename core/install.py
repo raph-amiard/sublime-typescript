@@ -25,7 +25,7 @@ def check_for_node():
     node_path = get_node_path()
     try:
         subprocess.call([node_path, "--help"], startupinfo = startupinfo)
-    except Exception, e:
+    except Exception as e:
         sublime.error_message("The node executable hasn't been found, you might want to set it in your typescript settings by adding the \"node_path\" key")
         raise e
 
@@ -63,10 +63,10 @@ def compile_plugin(plugin_path):
 
     if len(os.listdir(typescript_dir)) == 0:
         # We need to get typescript and unzip it
-        import urllib
+        import urllib.request, urllib.parse, urllib.error
         import zipfile
         zf_path = plugin_file("lib/typescript/ts.zip")
-        urllib.urlretrieve(TYPESCRIPT_SOURCE_LINK, zf_path)
+        urllib.request.urlretrieve(TYPESCRIPT_SOURCE_LINK, zf_path)
         zipf = zipfile.ZipFile(zf_path)
         zipf.extractall(path=plugin_file("lib/typescript/"))
         zipf.close()
