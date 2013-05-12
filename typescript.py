@@ -10,9 +10,20 @@ from threading import Thread, RLock, Semaphore
 from time import sleep, time
 import re
 import difflib
-from core import project, install
+from .ts_helpers import project, install
 from itertools import cycle, chain
 from collections import defaultdict
+import sys
+
+# when using st3 import reload so we can reload 
+# the submodule ts_helpers whenever it changes during development
+if sublime.version() == '' or int(sublime.version()) > 3000:
+    st_version = 3
+    from imp import reload
+
+    reload(sys.modules['sublime-typescript.ts_helpers.install'])
+    reload(sys.modules['sublime-typescript.ts_helpers.project'])
+
 
 class AtomicValue:
     def __init__(self):
@@ -34,6 +45,7 @@ loading_files = AtomicValue()
 ts_settings = sublime.load_settings("typescript.sublime-settings")
 
 install.check_for_node()
+
 do_compile = install.check_plugin_path()
 plugin_path = ts_settings.get("plugin_path")
 def install_helper():
@@ -41,7 +53,11 @@ def install_helper():
     install.compile_plugin(plugin_path)
     loading_files.dec()
 thread_install = None
+
+
+
 if install.needs_to_compile_plugin():
+    print("we need to install the plugin")
     thread_install = Thread(target=install_helper)
     thread_install.start()
 
@@ -173,14 +189,15 @@ class PluginInstance(object):
             if thread_install:
                 thread_install.join()
             loading_files.inc()
+            # kwargs = {"stderr":open(plugin_file('stderr.log'),'a+')}
             kwargs = {}
             errorlog = None
             if os.name == 'nt':
-                errorlog = open(os.devnull, 'w')
+                errorlog = open(os.devnull, 'a+')
                 startupinfo = subprocess.STARTUPINFO()
                 startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
                 kwargs = {"stderr":errorlog, "startupinfo":startupinfo}
-            self.p = Popen([get_node_path(), plugin_file("bin/main.js")], stdin=PIPE, stdout=PIPE, **kwargs)
+            self.p = Popen([get_node_path(), plugin_file("bin/main.js")], stdin=PIPE, stdout=PIPE,cwd=get_plugin_path(), **kwargs)
 
             if errorlog:
                 errorlog.close()
@@ -189,6 +206,7 @@ class PluginInstance(object):
             loading_files.dec()
             print("OUT OF INIT ASYNC")
             self.init_sem.release()
+
 
         self.init_sem.acquire()
         Thread(target=init_async).start()
@@ -199,10 +217,16 @@ class PluginInstance(object):
     def msg(self, *args):
         res = None
         message = json.dumps(args) + "\n"
-        t = time()
-        self.p.stdin.write(message)
+        self.p.stdin.write(bytes(message, 'utf-8'))
+        self.p.stdin.flush()
+        self.p.stdout.flush()
         msg_content = self.p.stdout.readline()
-        res = json.loads(msg_content)
+
+        if len(msg_content) == 0:
+          return json.loads("{}")
+
+        # print(msg_content.decode('utf-8'))
+        res = json.loads(msg_content.decode('utf-8'))
         return res
 
     def serv_add_file(self, file_name):
