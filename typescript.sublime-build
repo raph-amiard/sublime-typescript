@@ -1,0 +1,13 @@
+{
+    "cmd": ["tsc", "-sourcemap", "$file"],
+    "file_regex": "(.*\\.ts?)\\s\\(([0-9]+)\\,([0-9]+)\\)\\:\\s(...*?)$",
+    "selector": "source.ts",
+
+    "windows": {
+        "cmd": ["tsc", "-sourcemap", "$file"]
+    },
+    "osx": {
+       "path": "/usr/local/bin:/opt/local/bin"
+    }
+
+}
