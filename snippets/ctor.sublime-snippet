@@ -1,6 +1,5 @@
 <snippet>
-	<content><![CDATA[
-public constructor(${1})
+	<content><![CDATA[public constructor(${1})
 {
 	${2:// code...}
 }
