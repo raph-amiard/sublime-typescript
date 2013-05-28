@@ -5,5 +5,5 @@
 }]]></content>
 	<tabTrigger>for</tabTrigger>
 	<scope>source.ts</scope>
-    <description>for loop …</description>
+    <description>for (…) {…}</description>
 </snippet>
