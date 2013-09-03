@@ -1,6 +1,8 @@
 WARNING
 -------
 
+UPDATE : A new project, [T3S](https://github.com/Railk/T3S), has risen, and does all this project does apparently, and more, so give it a try ! 
+
 THIS PLUGIN IS NOT MAINTAINED ANYMORE, AND WILL NOT BE. 
 IF YOU NEED IMPROVEMENTS/BUG FIXES YOU WILL HAVE TO DO THEM YOURSELF.
 IF YOU WANT TO TAKE OWNERSHIP OF THE PROJECT, JUST TELL ME AND I WILL BE HAPPY TO GIVE IT TO YOU.
