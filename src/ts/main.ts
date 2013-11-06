@@ -1,5 +1,5 @@
 ///<reference path='compilerservice.ts'/>
-///<reference path='../lib/typescript/samples/node/node.d.ts'/>
+///<reference path='../../lib/typescript/samples/node/node.d.ts'/>
 
 var readline = require('readline');
 

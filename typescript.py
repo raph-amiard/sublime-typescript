@@ -10,9 +10,20 @@ from threading import Thread, RLock, Semaphore
 from time import sleep, time
 import re
 import difflib
-from core import project, install
+from .ts_helpers import project, install
 from itertools import cycle, chain
 from collections import defaultdict
+import sys
+
+# when using st3 import reload so we can reload 
+# the submodule ts_helpers whenever it changes during development
+if sublime.version() == '' or int(sublime.version()) > 3000:
+    st_version = 3
+    from imp import reload
+
+    reload(sys.modules['sublime-typescript.ts_helpers.install'])
+    reload(sys.modules['sublime-typescript.ts_helpers.project'])
+
 
 class AtomicValue:
     def __init__(self):
@@ -34,6 +45,7 @@ loading_files = AtomicValue()
 ts_settings = sublime.load_settings("typescript.sublime-settings")
 
 install.check_for_node()
+
 do_compile = install.check_plugin_path()
 plugin_path = ts_settings.get("plugin_path")
 def install_helper():
@@ -41,7 +53,11 @@ def install_helper():
     install.compile_plugin(plugin_path)
     loading_files.dec()
 thread_install = None
+
+
+
 if install.needs_to_compile_plugin():
+    print("we need to install the plugin")
     thread_install = Thread(target=install_helper)
     thread_install.start()
 
@@ -94,16 +110,16 @@ def format_diffs(old_content, new_content):
             if oc[0] in ['insert', 'delete', 'replace']]
 
 prefixes = {
-    "method": u"◉",
-    "property": u"●",
-    "class":u"◆",
-    "interface":u"◇",
-    "keyword":u"∆",
-    "variable": u"∨",
+    "method": "◉",
+    "property": "●",
+    "class":"◆",
+    "interface":"◇",
+    "keyword":"∆",
+    "variable": "∨",
 }
 
 js_id_re = re.compile(
-    ur'^[_$a-zA-Z\u00FF-\uFFFF][_$a-zA-Z0-9\u00FF-\uFFFF]*'
+    r'^[_$a-zA-Z\u00FF-\uFFFF][_$a-zA-Z0-9\u00FF-\uFFFF]*'
 )
 
 def is_member_completion(line):
@@ -115,7 +131,7 @@ def is_member_completion(line):
     return line.endswith(".") or partial_completion()
 
 def format_completion_entry(c_entry):
-    prefix = prefixes.get(c_entry["kind"], u"-")
+    prefix = prefixes.get(c_entry["kind"], "-")
     prefix += " "
     middle = c_entry["name"]
     suffix = "\t" + c_entry["type"]
@@ -125,7 +141,7 @@ def partition_by(lst, disc):
     partitions = defaultdict(list)
     for el in lst:
         partitions[disc(el)].append(el)
-    return partitions.values()
+    return list(partitions.values())
 
 def sort_completions(entries):
     return [(format_completion_entry(item), item["name"])
@@ -163,7 +179,7 @@ def get_node_path():
 
 class PluginInstance(object):
     def __init__(self):
-        print "PLUGIN_FILE ", plugin_file("bin/main.js")
+        print("PLUGIN_FILE ", plugin_file("bin/main.js"))
         self.open_files = set()
         self.views_text = {}
         self.errors_intervals = {}
@@ -173,22 +189,24 @@ class PluginInstance(object):
             if thread_install:
                 thread_install.join()
             loading_files.inc()
+            # kwargs = {"stderr":open(plugin_file('stderr.log'),'a+')}
             kwargs = {}
             errorlog = None
             if os.name == 'nt':
-                errorlog = open(os.devnull, 'w')
+                errorlog = open(os.devnull, 'a+')
                 startupinfo = subprocess.STARTUPINFO()
                 startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
                 kwargs = {"stderr":errorlog, "startupinfo":startupinfo}
-            self.p = Popen([get_node_path(), plugin_file("bin/main.js")], stdin=PIPE, stdout=PIPE, **kwargs)
+            self.p = Popen([get_node_path(), plugin_file("bin/main.js")], stdin=PIPE, stdout=PIPE,cwd=get_plugin_path(), **kwargs)
 
             if errorlog:
                 errorlog.close()
 
             self.serv_add_file(plugin_file("bin/lib.d.ts"))
             loading_files.dec()
-            print "OUT OF INIT ASYNC"
+            print("OUT OF INIT ASYNC")
             self.init_sem.release()
+
 
         self.init_sem.acquire()
         Thread(target=init_async).start()
@@ -199,10 +217,16 @@ class PluginInstance(object):
     def msg(self, *args):
         res = None
         message = json.dumps(args) + "\n"
-        t = time()
-        self.p.stdin.write(message)
+        self.p.stdin.write(bytes(message, 'utf-8'))
+        self.p.stdin.flush()
+        self.p.stdout.flush()
         msg_content = self.p.stdout.readline()
-        res = json.loads(msg_content)
+
+        if len(msg_content) == 0:
+          return json.loads("{}")
+
+        # print(msg_content.decode('utf-8'))
+        res = json.loads(msg_content.decode('utf-8'))
         return res
 
     def serv_add_file(self, file_name):
@@ -263,7 +287,7 @@ class PluginInstance(object):
             self.serv_edit_file(filename, *diff)
 
         if bydiff_content != new_content:
-            print "ERROR WITH DIFF ALGORITHM"
+            print("ERROR WITH DIFF ALGORITHM")
             raise Exception("ERROR WITH DIFF ALGORITHM")
         else:
             self.views_text[filename] = new_content
@@ -287,7 +311,7 @@ class PluginInstance(object):
         )
 
     def get_error_for_pos(self, pos):
-        for (l, h), error in self.errors_intervals.iteritems():
+        for (l, h), error in self.errors_intervals.items():
             if pos >= l and pos <= h:
                 return error
         return None
@@ -420,7 +444,7 @@ class TestEvent(sublime_plugin.EventListener):
         return self.workers[bid]
 
     def on_load(self, view):
-        print "IN ON LOAD FOR VIEW : ", view.file_name()
+        print("IN ON LOAD FOR VIEW : ", view.file_name())
         if is_ts(view):
             init_view(view)
 
@@ -445,7 +469,7 @@ class TestEvent(sublime_plugin.EventListener):
             line = view.substr(sublime.Region(view.line(pos-1).a, pos))
             bword_pos = sublime.Region(view.word(pos).a, pos)
             word = view.substr(bword_pos)
-            print "WORD : ", word
+            print("WORD : ", word)
             completions_json = get_plugin(view).serv_get_completions(
                 view.file_name(), bword_pos.a, is_member_completion(line)
             )

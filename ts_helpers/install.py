@@ -15,7 +15,6 @@ startupinfo = None
 if os.name == 'nt':
     startupinfo = subprocess.STARTUPINFO()
     startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-
 if ts_settings.has("node_path"):
     node_path = ts_settings.get("node_path")
 def get_node_path():
@@ -25,7 +24,7 @@ def check_for_node():
     node_path = get_node_path()
     try:
         subprocess.call([node_path, "--help"], startupinfo = startupinfo)
-    except Exception, e:
+    except Exception as e:
         sublime.error_message("The node executable hasn't been found, you might want to set it in your typescript settings by adding the \"node_path\" key")
         raise e
 
@@ -52,7 +51,8 @@ def check_plugin_path():
     sublime.save_settings("typescript.sublime-settings")
 
 def needs_to_compile_plugin():
-    return not path.exists(path.join(ts_settings.get("plugin_path"), "bin/main.js"))
+    mainPath = path.join(ts_settings.get("plugin_path"), "bin/main.js")
+    return not path.exists(mainPath)
 
 def compile_plugin(plugin_path):
     def plugin_file(f):
@@ -63,10 +63,10 @@ def compile_plugin(plugin_path):
 
     if len(os.listdir(typescript_dir)) == 0:
         # We need to get typescript and unzip it
-        import urllib
+        import urllib.request, urllib.parse, urllib.error
         import zipfile
         zf_path = plugin_file("lib/typescript/ts.zip")
-        urllib.urlretrieve(TYPESCRIPT_SOURCE_LINK, zf_path)
+        urllib.request.urlretrieve(TYPESCRIPT_SOURCE_LINK, zf_path)
         zipf = zipfile.ZipFile(zf_path)
         zipf.extractall(path=plugin_file("lib/typescript/"))
         zipf.close()
@@ -77,6 +77,7 @@ def compile_plugin(plugin_path):
     if not path.exists(bindir):
         os.makedirs(bindir)
 
+    print("compiling main.js")
     subprocess.call([get_node_path(),
                      plugin_file("lib/typescript/bin/tsc.js"),
                      plugin_file("src/ts/main.ts"),
