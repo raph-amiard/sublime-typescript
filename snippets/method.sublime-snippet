@@ -1,0 +1,9 @@
+<snippet>
+    <content><![CDATA[public $1(${2:arguments}) : ${3:void}
+{ 
+	${0:// code...}
+}]]></content>
+	<tabTrigger>method</tabTrigger>
+	<scope>source.ts</scope>
+    <description>class method</description>
+</snippet>
